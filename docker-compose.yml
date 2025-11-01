@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  ai-backend:
+    # Use pre-built image from GitHub Container Registry
+    # Or build locally by uncommenting the 'build' section
+    image: ghcr.io/suhasdissa/ai-spotlight-backend:latest
+
+    # Uncomment to build locally instead of pulling from registry
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: ai-spotlight-backend
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      # Persist data (documents and FAISS index)
+      - ai-data:/app/data
+      # Optional: mount local app for development
+      # - ./app:/app/app
+
+    environment:
+      # Model configuration
+      - MODEL_NAME=Qwen/Qwen2.5-1.5B-Instruct
+      - DEVICE=cuda  # Change to 'cpu' if not using GPU
+
+      # Server configuration
+      - HOST=0.0.0.0
+      - PORT=8000
+      - CORS_ORIGINS=*
+
+      # Search configuration
+      - MAX_SEARCH_RESULTS=5
+      - TOP_K=5
+
+      # Performance
+      - PYTHONUNBUFFERED=1
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # GPU support (comment out if using CPU)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  ai-data:
+    driver: local
