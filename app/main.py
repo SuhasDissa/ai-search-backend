@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict
+from contextlib import asynccontextmanager
 import os
 import shutil
 from .config import settings
@@ -9,11 +10,30 @@ from .model_handler import model_handler
 from .rag_engine import rag_engine
 from .web_search import web_search
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events"""
+    # Startup: Load models on startup
+    print("Starting AI Spotlight Backend...")
+    model_handler.load_model()
+
+    # Try to load existing RAG index
+    if os.path.exists(f"{settings.FAISS_INDEX_PATH}.index"):
+        rag_engine.load_index()
+    else:
+        print("No existing RAG index found. Upload documents to create one.")
+    
+    yield
+    
+    # Shutdown: cleanup if needed
+    print("Shutting down AI Spotlight Backend...")
+
 # Initialize FastAPI app
 app = FastAPI(
     title="AI Spotlight Backend",
     description="AI-powered search with RAG and web search capabilities",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -36,19 +56,6 @@ class QueryResponse(BaseModel):
     response: str
     sources: List[Dict] = []
     search_results: List[Dict] = []
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Load models on startup"""
-    print("Starting AI Spotlight Backend...")
-    model_handler.load_model()
-
-    # Try to load existing RAG index
-    if os.path.exists(f"{settings.FAISS_INDEX_PATH}.index"):
-        rag_engine.load_index()
-    else:
-        print("No existing RAG index found. Upload documents to create one.")
 
 # Health check endpoint
 @app.get("/health")

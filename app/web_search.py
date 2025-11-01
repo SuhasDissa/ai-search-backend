@@ -22,15 +22,16 @@ class WebSearch:
         try:
             results = []
 
-            with DDGS() as ddgs:
-                search_results = ddgs.text(query, max_results=num_results)
+            # DDGS() no longer requires context manager in version 8.x
+            ddgs = DDGS()
+            search_results = ddgs.text(query, max_results=num_results)
 
-                for result in search_results:
-                    results.append({
-                        'title': result.get('title', ''),
-                        'snippet': result.get('body', ''),
-                        'url': result.get('href', '')
-                    })
+            for result in search_results:
+                results.append({
+                    'title': result.get('title', ''),
+                    'snippet': result.get('body', ''),
+                    'url': result.get('href', '')
+                })
 
             return results
 
