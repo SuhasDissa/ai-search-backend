@@ -1,0 +1,13 @@
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+transformers==4.37.2
+torch==2.2.0
+accelerate==0.27.2
+sentence-transformers==2.3.1
+faiss-cpu==1.7.4
+langchain==0.1.5
+requests==2.31.0
+python-multipart==0.0.6
+duckduckgo-search==4.1.1
+pypdf==4.0.1
+python-dotenv==1.0.1

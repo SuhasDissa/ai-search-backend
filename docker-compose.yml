@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  ai-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-spotlight-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./app:/app/app
+    environment:
+      - MODEL_NAME=Qwen/Qwen2-0.5B-Instruct
+      - DEVICE=cpu
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    # Uncomment below for GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
