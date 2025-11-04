@@ -11,21 +11,21 @@ RUN pip install --no-cache-dir --upgrade pip
 # Base image already includes: torch, transformers, tokenizers, datasets
 COPY requirements.txt .
 RUN pip install --no-cache-dir \
-    fastapi==0.120.4 \
-    uvicorn[standard]==0.38.0 \
-    accelerate==1.11.0 \
-    sentence-transformers==5.1.2 \
+    fastapi \
+    uvicorn[standard] \
+    accelerate \
+    sentence-transformers \
     faiss-gpu-cu12 \
-    langchain==1.0.3 \
-    requests==2.32.5 \
-    python-multipart==0.0.20 \
-    duckduckgo-search==8.1.1 \
-    pypdf==6.1.3 \
-    python-dotenv==1.2.1 \
-    aiohttp==3.11.11 \
-    beautifulsoup4==4.12.3 \
-    scikit-learn==1.6.1 \
-    numpy==2.2.3
+    langchain \
+    requests \
+    python-multipart \
+    duckduckgo-search \
+    pypdf \
+    python-dotenv \
+    aiohttp \
+    beautifulsoup4 \
+    scikit-learn \
+    numpy
 
 # Download models to cache
 RUN python -c "from transformers import AutoTokenizer, AutoModelForCausalLM; \
