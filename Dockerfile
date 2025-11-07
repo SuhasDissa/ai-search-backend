@@ -1,33 +1,36 @@
-# Single-stage build for AI Spotlight Backend with GPU support
-FROM huggingface/transformers-pytorch-gpu:latest
+# Stage 1: Builder
+# Use the CUDA 12.1 development image to build our venv
+FROM nvidia/cuda:12.1.1-devel-ubuntu22.04 AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Upgrade pip
+# Install Python 3.11 and venv
+# Use --no-install-recommends to keep it slim
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create and activate venv
+RUN python3.11 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Upgrade pip in venv
 RUN pip install --no-cache-dir --upgrade pip
 
-# Copy requirements and install only the packages not already in base image
-# Base image already includes: torch, transformers, tokenizers, datasets
-COPY requirements.txt .
-RUN pip install --no-cache-dir \
-    fastapi \
-    uvicorn[standard] \
-    accelerate \
-    sentence-transformers \
-    faiss-gpu-cu12 \
-    langchain \
-    requests \
-    python-multipart \
-    duckduckgo-search \
-    pypdf \
-    python-dotenv \
-    aiohttp \
-    beautifulsoup4 \
-    scikit-learn \
-    numpy
+# Set dedicated cache directory for models
+ENV HF_HOME=/app/model_cache
+ENV SENTENCE_TRANSFORMERS_HOME=/app/model_cache
 
-# Download models to cache
+# Install dependencies from requirements.txt into the venv
+# This now MUST include torch, transformers, etc.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Download and cache models
 RUN python -c "from transformers import AutoTokenizer, AutoModelForCausalLM; \
     from sentence_transformers import SentenceTransformer; \
     print('Downloading Qwen tokenizer and model...'); \
@@ -37,40 +40,59 @@ RUN python -c "from transformers import AutoTokenizer, AutoModelForCausalLM; \
     SentenceTransformer('all-MiniLM-L6-v2'); \
     print('All models cached successfully!')"
 
-# Create directories for data persistence
-RUN mkdir -p /app/data/documents /app/data/faiss_index && \
-    chmod -R 755 /app/data
+# ---
 
-# Create non-root user for security
+# Stage 2: Final Image
+# Use the smaller CUDA 12.1 runtime image
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+
+WORKDIR /app
+
+# Install Python 3.11 runtime
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
 RUN useradd -m -u 1000 appuser
 
-# Set up model cache directory for appuser
-RUN mkdir -p /home/appuser/.cache && \
-    cp -r /root/.cache/* /home/appuser/.cache/ 2>/dev/null || true && \
-    chown -R appuser:appuser /home/appuser/.cache
+# Create and set permissions for persistent data directories
+RUN mkdir -p /app/data/documents /app/data/faiss_index && \
+    chown -R appuser:appuser /app/data
 
-# Copy application code
-COPY app/ ./app/
+# Copy the venv from the builder stage
+COPY --from=builder /opt/venv /opt/venv
 
-# Set ownership
-RUN chown -R appuser:appuser /app
+# Copy only the clean model cache from the builder stage
+COPY --from=builder /app/model_cache /home/appuser/.cache
+RUN chown -R appuser:appuser /home/appuser/.cache
 
+# Copy application code and set ownership
+COPY --chown=appuser:appuser app/ ./app/
+
+# Switch to the non-root user
 USER appuser
 
 # Expose port
 EXPOSE 8000
 
-# Health check using Python instead of curl
+# Set environment variables for the running container
+ENV PATH="/opt/venv/bin:$PATH"
+ENV HF_HOME=/home/appuser/.cache
+ENV SENTENCE_TRANSFORMERS_HOME=/home/appuser/.cache
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV HOST=0.0.0.0
+ENV PORT=8000
+ENV DOCUMENTS_DIR=/app/data/documents
+ENV FAISS_INDEX_PATH=/app/data/faiss_index/index
+
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" || exit 1
-
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    HOST=0.0.0.0 \
-    PORT=8000 \
-    DOCUMENTS_DIR=/app/data/documents \
-    FAISS_INDEX_PATH=/app/data/faiss_index/index
 
 # Run the application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
