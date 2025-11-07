@@ -4,7 +4,7 @@ services:
   ai-backend:
     # Use pre-built image from GitHub Container Registry
     # Or build locally by uncommenting the 'build' section
-    image: ghcr.io/suhasdissa/ai-spotlight-backend:latest
+    image: ghcr.io/suhasdissa/ai-spotlight-backend:v1.0.0
 
     # Uncomment to build locally instead of pulling from registry
     build:
